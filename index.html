@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Send Mike a Message</title>
+<style>
+  /* Minimalist, high-contrast style */
+  :root{ --bg:#000; --fg:#fff; --muted: #bdbdbd; --accent:#fff; }
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+  .wrap{min-height:100%; display:flex; align-items:center; justify-content:center; padding:32px; box-sizing:border-box;}
+  .card{max-width:720px; width:100%; text-align:left;}
+  .center{display:flex; flex-direction:column; gap:18px; align-items:flex-start;}
+  #intro { font-size:20px; line-height:1.2; color:var(--muted); margin-bottom:12px; height:44px; }
+  #mikeIs { font-size:28px; color:var(--fg); }
+  #phrase { font-size:20px; color:var(--muted); min-height:28px; margin-top:6px; opacity:0; transition:opacity .28s ease; }
+  .fade-in{ opacity:1 !important; }
+  .cursor { display:inline-block; width:10px; margin-left:6px; animation:blink 1s steps(2,start) infinite; color:var(--fg); }
+  @keyframes blink { 0% {opacity:1} 50%{opacity:0} 100%{opacity:1} }
+  #prompt { font-size:28px; margin-top:8px; color:var(--fg); display:flex; gap:8px; align-items:center; }
+  form{ width:100%; margin-top:10px; display:flex; flex-direction:column; gap:10px; }
+  input[type="text"], input[type="email"], textarea{ background:transparent; border:1px solid rgba(255,255,255,0.08); color:var(--fg); padding:12px; border-radius:8px; font-size:16px; outline:none; }
+  input::placeholder, textarea::placeholder { color:rgba(255,255,255,0.35); }
+  textarea{ min-height:160px; resize:vertical; }
+  .meta { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  #wordCount { color:var(--muted); font-size:14px; }
+  button { background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--fg); padding:10px 16px; border-radius:8px; cursor:pointer; font-size:16px; }
+  button:disabled { opacity:0.45; cursor:not-allowed; }
+  #status { color:var(--muted); margin-top:8px; font-size:15px; }
+  .banner{ background:rgba(255,255,255,0.03); padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.02); }
+  a.link{ color:var(--accent); text-decoration:underline; }
+  @media (max-width:520px){ .card{padding:8px;} #mikeIs{font-size:22px} #prompt{font-size:20px} textarea{min-height:120px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div id="intro" class="center" aria-live="polite">
+      <div id="mikeIs">"Mike" is…</div>
+      <div id="phrase" aria-hidden="true"></div>
+    </div>
+
+    <div id="compose" hidden>
+      <div id="prompt">Dear Mike<span class="cursor" aria-hidden="true">_</span></div>
+
+      <form id="msgForm" autocomplete="off" novalidate>
+        <div class="banner" id="pendingBanner" style="display:none;">
+          You have a message waiting for payment. <button id="resumeBtn" type="button">Resume payment</button>
+        </div>
+
+        <input id="name" type="text" name="name" placeholder="Name (optional)" />
+        <input id="email" type="email" name="email" placeholder="Email (required)" required />
+
+        <textarea id="message" name="message" placeholder="Write up to 250 words…"></textarea>
+
+        <div class="meta">
+          <div id="wordCount">0 / 250 words</div>
+          <!-- Payment will be handled via a Stripe Payment Link (see notes). -->
+          <button id="sendBtn" type="button">Send — $5</button>
+        </div>
+      </form>
+
+      <div id="status" hidden></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ======================
+   CONFIG — replace placeholders below
+   ====================== */
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/your_payment_link_here"; // << REPLACE with Stripe Payment Link
+const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/your_apps_script_deploy_url/exec"; // << REPLACE with your Apps Script URL
+const APPS_SCRIPT_CLIENT_SECRET = "REPLACE_WITH_A_CLIENT_SECRET_STRING"; // << REPLACE with a short secret (optional but recommended)
+const LOCAL_STORAGE_KEY = "dearMike_pending_v1";
+
+/* ======================
+   UI / Phrase sequence
+   ====================== */
+const phrases = [
+  "a real person",
+  "a curious listener",
+  "a business consultant",
+  "a parent",
+  "a leader",
+  "a spouse",
+  "a reader",
+  "a writer",
+  "a teacher"
+];
+
+const phraseEl = document.getElementById('phrase');
+const introEl = document.getElementById('intro');
+const composeEl = document.getElementById('compose');
+const pendingBanner = document.getElementById('pendingBanner');
+const resumeBtn = document.getElementById('resumeBtn');
+
+function delay(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+async function showIntroSequence(){
+  // small initial pause
+  await delay(350);
+  for (let i = 0; i < phrases.length; i++){
+    phraseEl.textContent = phrases[i];
+    phraseEl.classList.add('fade-in');
+    await delay(1000); // visible time
+    phraseEl.classList.remove('fade-in');
+    await delay(160); // fade out pause
+  }
+  // final pause then show compose
+  await delay(200);
+  introEl.style.display = 'none';
+  composeEl.hidden = false;
+  document.getElementById('message').focus();
+}
+
+/* ======================
+   Word count (250 word limit)
+   ====================== */
+const messageEl = document.getElementById('message');
+const wordCountEl = document.getElementById('wordCount');
+const sendBtn = document.getElementById('sendBtn');
+const nameEl = document.getElementById('name');
+const emailEl = document.getElementById('email');
+const statusEl = document.getElementById('status');
+
+function countWords(text){
+  if (!text) return 0;
+  // Split on whitespace, ignore empty entries
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function trimToWords(text, max){
+  const parts = text.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= max) return text;
+  return parts.slice(0, max).join(' ');
+}
+
+function updateWordCount(){
+  let words = countWords(messageEl.value);
+  if (words > 250){
+    messageEl.value = trimToWords(messageEl.value, 250);
+    words = 250;
+  }
+  wordCountEl.textContent = `${words} / 250 words`;
+  sendBtn.disabled = (words === 0) || !validateEmail(emailEl.value);
+}
+
+/* ======================
+   Email validation
+   ====================== */
+function validateEmail(email){
+  if (!email) return false;
+  // simple check
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/* ======================
+   Pending resume logic
+   ====================== */
+function getPending(){ try { return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)); } catch(e){ return null; } }
+function setPending(obj){ localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(obj)); }
+function clearPending(){ localStorage.removeItem(LOCAL_STORAGE_KEY); }
+
+function showPendingBannerIfNeeded(){
+  const pending = getPending();
+  if (pending && pending.message){
+    pendingBanner.style.display = "block";
+  } else {
+    pendingBanner.style.display = "none";
+  }
+}
+
+resumeBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  // re-open payment link
+  window.open(STRIPE_PAYMENT_LINK, '_blank');
+});
+
+/* ======================
+   Send flow
+   ====================== */
+function uuidv4(){
+  // simple RFC4122 v4-ish generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+    const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+sendBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  statusEl.hidden = true;
+  const messageText = messageEl.value.trim();
+  const email = emailEl.value.trim();
+  const name = nameEl.value.trim();
+
+  if (!messageText){ statusEl.textContent = "Please write something before sending."; statusEl.hidden = false; return; }
+  if (!validateEmail(email)){ statusEl.textContent = "Please enter a valid email address."; statusEl.hidden = false; return; }
+
+  // Build pending payload
+  const payload = {
+    id: uuidv4(),
+    name: name || "",
+    email: email,
+    message: messageText,
+    ts: new Date().toISOString(),
+    clientSecret: APPS_SCRIPT_CLIENT_SECRET // will be forwarded to Apps Script for light verification
+  };
+
+  setPending(payload);
+
+  // Open Stripe Payment Link in a new tab so the success redirect can return to this app and have access to localStorage.
+  try {
+    window.open(STRIPE_PAYMENT_LINK, '_blank');
+    statusEl.textContent = "Opening payment in a new tab. After payment you'll be redirected back here to complete submission.";
+    statusEl.hidden = false;
+    // Optionally give instructions: they should finish the payment flow and wait for the app to complete.
+  } catch(err){
+    statusEl.textContent = "Unable to open payment link. Please open this link manually: " + STRIPE_PAYMENT_LINK;
+    statusEl.hidden = false;
+  }
+  showPendingBannerIfNeeded();
+});
+
+/* ======================
+   Init
+   ====================== */
+document.addEventListener('DOMContentLoaded', function(){
+  // start intro
+  showIntroSequence();
+
+  messageEl.addEventListener('input', updateWordCount);
+  emailEl.addEventListener('input', updateWordCount);
+  nameEl.addEventListener('input', updateWordCount);
+
+  // if there is a pending message, show the banner
+  showPendingBannerIfNeeded();
+
+  // quick accessibility: pressing Enter in email field focuses message
+  emailEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); messageEl.focus(); } });
+
+  updateWordCount();
+});
+</script>
+</body>
+</html>
