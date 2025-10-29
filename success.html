@@ -1,80 +1,31 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Message Sent — Dear Mike</title>
-<style>
-  :root{ --bg:#000; --fg:#fff; --muted:#bdbdbd; }
-  html,body{margin:0;padding:0;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--fg);font-family:"IBM Plex Mono",ui-monospace,monospace;text-align:center;}
-  .card{max-width:600px;padding:32px;}
-  h1{font-size:26px;margin-bottom:16px;}
-  p{font-size:16px;color:var(--muted);}
-  .loading{animation:pulse 1.4s ease-in-out infinite alternate;}
-  @keyframes pulse {from{opacity:.3;}to{opacity:1;}}
-</style>
-</head>
-<body>
-  <div class="card">
-    <h1 id="title">Sending your message…</h1>
-    <p id="desc" class="loading">Please wait a moment.</p>
-  </div>
+<h2>Thank you!</h2>
+<p>Processing your message...</p>
 
 <script>
-const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbwdS5_sE4Q09xKv9_aNd0xllWy2eEtpstwUl0LCB4VP0gMf2qF6XnrRFZ5PIkNrXa7FHA/exec";
-const APPS_SCRIPT_CLIENT_SECRET = "supersecretstring123";
-const LOCAL_STORAGE_KEY = "dearMike_pending_v1";
+const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbzb6pcahAq5YeDTQcF6317vO7m5M7YPMTgFE51IJ8kcvdFDyy7xeFGxKi_emfQ8ytRXVQ/exec";
+const CLIENT_SECRET = "supersecretstring123";
 
-async function sendPendingMessage() {
-  const title = document.getElementById('title');
-  const desc = document.getElementById('desc');
-  
-  let pending;
-  try {
-    pending = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY));
-  } catch(e) {
-    pending = null;
-  }
-
-  if (!pending || !pending.message) {
-    title.textContent = "No pending message found.";
-    desc.textContent = "If you already paid, your message might have already been sent successfully. You can safely close this page.";
-    desc.classList.remove("loading");
+window.addEventListener("load", async () => {
+  const messageId = sessionStorage.getItem("dearMike_messageId");
+  if(!messageId){
+    document.body.innerHTML="<p>Could not find your message. Please copy & send manually.</p>";
     return;
   }
 
-  try {
-    const response = await fetch(APPS_SCRIPT_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: pending.name,
-        email: pending.email,
-        message: pending.message,
-        ts: pending.ts,
-        clientSecret: APPS_SCRIPT_CLIENT_SECRET
-      })
+  try{
+    const res = await fetch(APPS_SCRIPT_WEBHOOK,{
+      method:'POST',
+      body: JSON.stringify({clientSecret:CLIENT_SECRET, markPaid:true, messageId:messageId})
     });
-
-    const data = await response.json();
-
-    if (data.success) {
-      title.textContent = "Thank you — your message has been sent!";
-      desc.textContent = "Mike will receive it shortly. You may now close this page.";
-      desc.classList.remove("loading");
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-    } else {
-      throw new Error(data.error || "Unknown error");
+    const data = await res.json();
+    if(data.success){
+      document.body.innerHTML="<h2>Thank you!</h2><p>Your message has been sent successfully.</p>";
+      sessionStorage.removeItem("dearMike_messageId");
+    }else{
+      document.body.innerHTML="<p>Error: "+data.error+"</p>";
     }
-  } catch(err) {
-    title.textContent = "Something went wrong.";
-    desc.textContent = "Your payment was successful, but we couldn’t send your message automatically. Please copy your message and send it manually.";
-    desc.classList.remove("loading");
-    console.error(err);
+  }catch(err){
+    document.body.innerHTML="<p>Unexpected error: "+err.message+"</p>";
   }
-}
-
-document.addEventListener("DOMContentLoaded", sendPendingMessage);
+});
 </script>
-</body>
-</html>
