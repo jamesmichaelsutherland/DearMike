@@ -110,17 +110,23 @@ function updateWordCount(){
 }
 function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/* ====================== Send message (pre-pay) ====================== */
-sendBtn.addEventListener('click', async()=>{
+/* ====================== Send message (pre-pay, fail-safe) ====================== */
+sendBtn.addEventListener('click', async () => {
   const message = messageEl.value.trim();
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
-  if(!message){ alert("Type a message!"); return; }
-  if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
+  
+  if (!message) { alert("Type a message!"); return; }
+  if (!validateEmail(email)) { alert("Enter a valid email!"); return; }
 
-  try{
-    const res = await fetch(APPS_SCRIPT_WEBHOOK,{
-      method:'POST',
+  // Save message locally as a backup
+  sessionStorage.setItem("dearMike_backupMessage", message);
+  sessionStorage.setItem("dearMike_backupName", name);
+  sessionStorage.setItem("dearMike_backupEmail", email);
+
+  try {
+    const res = await fetch(APPS_SCRIPT_WEBHOOK, {
+      method: 'POST',
       body: JSON.stringify({
         clientSecret: CLIENT_SECRET,
         message: message,
@@ -128,16 +134,22 @@ sendBtn.addEventListener('click', async()=>{
         email: email
       })
     });
-    const data = await res.json();
-    if(data.error){ alert("Error: "+data.error); return; }
 
-    // Open Stripe
+    const data = await res.json();
+
+    if (data.error) { 
+      alert("Error saving your message: " + data.error + "\nYour message is saved locally. Please copy it just in case."); 
+      return; 
+    }
+
+    // If Apps Script succeeded, redirect to Stripe
     window.location.href = STRIPE_PAYMENT_LINK;
 
-  } catch(err){
-    alert("Unexpected error: "+err.message);
+  } catch (err) {
+    alert("Unexpected error: " + err.message + "\nYour message is saved locally. Please copy it just in case.");
   }
 });
+
 
 /* ====================== Init ====================== */
 document.addEventListener('DOMContentLoaded',()=>{
