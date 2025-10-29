@@ -202,7 +202,7 @@ sendBtn.addEventListener('click', (e) => {
   setPending(payload);
 
   try {
-    window.open(STRIPE_PAYMENT_LINK, '_blank');
+    window.open.href = STRIPE_PAYMENT_LINK;
     statusEl.textContent = "Opening payment in a new tab. After payment you'll be redirected back here to complete submission.";
     statusEl.hidden = false;
   } catch(err){
