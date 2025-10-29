@@ -7,25 +7,37 @@ const CLIENT_SECRET = "supersecretstring123";
 
 window.addEventListener("load", async () => {
   const messageId = sessionStorage.getItem("dearMike_messageId");
-  if(!messageId){
-    document.body.innerHTML="<p>Could not find your message. Please copy & send manually.</p>";
+
+  // Only show error if messageId is truly missing
+  if (!messageId) {
+    document.body.innerHTML = "<p>Your message was processed, but we could not verify it automatically. Please copy it manually if needed.</p>";
     return;
   }
 
-  try{
-    const res = await fetch(APPS_SCRIPT_WEBHOOK,{
-      method:'POST',
-      body: JSON.stringify({clientSecret:CLIENT_SECRET, markPaid:true, messageId:messageId})
+  try {
+    const res = await fetch(APPS_SCRIPT_WEBHOOK, {
+      method: 'POST',
+      body: JSON.stringify({
+        clientSecret: CLIENT_SECRET,
+        markPaid: true,
+        messageId: messageId
+      })
     });
+
     const data = await res.json();
-    if(data.success){
-      document.body.innerHTML="<h2>Thank you!</h2><p>Your message has been sent successfully.</p>";
+    console.log("Apps Script returned on success page:", data); // <-- for debugging
+
+    if (data && data.success) {
+      document.body.innerHTML = "<h2>Thank you!</h2><p>Your message has been sent successfully.</p>";
       sessionStorage.removeItem("dearMike_messageId");
-    }else{
-      document.body.innerHTML="<p>Error: "+data.error+"</p>";
+    } else if (data && data.error) {
+      document.body.innerHTML = "<p>Error verifying your message: " + data.error + "</p>";
+    } else {
+      document.body.innerHTML = "<p>Unexpected response from server. Your message may have been sent.</p>";
     }
-  }catch(err){
-    document.body.innerHTML="<p>Unexpected error: "+err.message+"</p>";
+  } catch (err) {
+    console.error("Fetch error on success page:", err);
+    document.body.innerHTML = "<p>Unexpected error: " + err.message + "</p>";
   }
 });
 </script>
