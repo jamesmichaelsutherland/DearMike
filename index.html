@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Send Mike a Message</title>
 <style>
-  /* Minimalist, high-contrast style */
-  :root{ --bg:#000; --fg:#fff; --muted: #bdbdbd; --accent:#fff; }
-  html,body{height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+  :root{ --bg:#000; --fg:#fff; --muted:#bdbdbd; --accent:#fff; }
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: "IBM Plex Mono", ui-monospace, Menlo, Monaco, "Roboto Mono", monospace;}
   .wrap{min-height:100%; display:flex; align-items:center; justify-content:center; padding:32px; box-sizing:border-box;}
   .card{max-width:720px; width:100%; text-align:left;}
   .center{display:flex; flex-direction:column; gap:18px; align-items:flex-start;}
@@ -44,60 +43,108 @@
       <div id="prompt">Dear Mike<span class="cursor" aria-hidden="true">_</span></div>
 
       <form id="msgForm" autocomplete="off" novalidate>
-        <div class="banner" id="pendingBanner" style="display:none;">
-          You have a message waiting for payment. <button id="resumeBtn" type="button">Resume payment</button>
-        </div>
-
         <input id="name" type="text" name="name" placeholder="Name (optional)" />
         <input id="email" type="email" name="email" placeholder="Email (required)" required />
-
         <textarea id="message" name="message" placeholder="Write up to 250 words…"></textarea>
 
         <div class="meta">
           <div id="wordCount">0 / 250 words</div>
-          <!-- Payment handled via Stripe Payment Link -->
           <button id="sendBtn" type="button">Send — $5</button>
         </div>
+
+        <div id="status" hidden></div>
       </form>
-
-      <div id="status" hidden></div>
     </div>
-
   </div>
 </div>
 
 <script>
-/* ======================
-   CONFIG — replace placeholders below
-   ====================== */
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/9B64gA2hx1R40934Zo4ko00";
-const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbwdS5_sE4Q09xKv9_aNd0xllWy2eEtpstwUl0LCB4VP0gMf2qF6XnrRFZ5PIkNrXa7FHA/exec";
-const APPS_SCRIPT_CLIENT_SECRET = "supersecretstring123";
-const LOCAL_STORAGE_KEY = "dearMike_pending_v1";
+/* ====================== CONFIG ====================== */
+const APPS_SCRIPT_WEBHOOK = "<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Send Mike a Message</title>
+<style>
+  :root{ --bg:#000; --fg:#fff; --muted:#bdbdbd; --accent:#fff; }
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: "IBM Plex Mono", ui-monospace, Menlo, Monaco, "Roboto Mono", monospace;}
+  .wrap{min-height:100%; display:flex; align-items:center; justify-content:center; padding:32px; box-sizing:border-box;}
+  .card{max-width:720px; width:100%; text-align:left;}
+  .center{display:flex; flex-direction:column; gap:18px; align-items:flex-start;}
+  #intro { font-size:20px; line-height:1.2; color:var(--muted); margin-bottom:12px; height:44px; }
+  #mikeIs { font-size:28px; color:var(--fg); }
+  #phrase { font-size:20px; color:var(--muted); min-height:28px; margin-top:6px; opacity:0; transition:opacity .28s ease; }
+  .fade-in{ opacity:1 !important; }
+  .cursor { display:inline-block; width:10px; margin-left:6px; animation:blink 1s steps(2,start) infinite; color:var(--fg); }
+  @keyframes blink { 0% {opacity:1} 50%{opacity:0} 100%{opacity:1} }
+  #prompt { font-size:28px; margin-top:8px; color:var(--fg); display:flex; gap:8px; align-items:center; }
+  form{ width:100%; margin-top:10px; display:flex; flex-direction:column; gap:10px; }
+  input[type="text"], input[type="email"], textarea{ background:transparent; border:1px solid rgba(255,255,255,0.08); color:var(--fg); padding:12px; border-radius:8px; font-size:16px; outline:none; }
+  input::placeholder, textarea::placeholder { color:rgba(255,255,255,0.35); }
+  textarea{ min-height:160px; resize:vertical; }
+  .meta { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  #wordCount { color:var(--muted); font-size:14px; }
+  button { background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--fg); padding:10px 16px; border-radius:8px; cursor:pointer; font-size:16px; }
+  button:disabled { opacity:0.45; cursor:not-allowed; }
+  #status { color:var(--muted); margin-top:8px; font-size:15px; }
+  .banner{ background:rgba(255,255,255,0.03); padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.02); }
+  a.link{ color:var(--accent); text-decoration:underline; }
+  @media (max-width:520px){ .card{padding:8px;} #mikeIs{font-size:22px} #prompt{font-size:20px} textarea{min-height:120px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div id="intro" class="center" aria-live="polite">
+      <div id="mikeIs">"Mike" is…</div>
+      <div id="phrase" aria-hidden="true"></div>
+    </div>
 
-/* ======================
-   UI / Phrase sequence
-   ====================== */
+    <div id="compose" hidden>
+      <div id="prompt">Dear Mike<span class="cursor" aria-hidden="true">_</span></div>
+
+      <form id="msgForm" autocomplete="off" novalidate>
+        <input id="name" type="text" name="name" placeholder="Name (optional)" />
+        <input id="email" type="email" name="email" placeholder="Email (required)" required />
+        <textarea id="message" name="message" placeholder="Write up to 250 words…"></textarea>
+
+        <div class="meta">
+          <div id="wordCount">0 / 250 words</div>
+          <button id="sendBtn" type="button">Send — $5</button>
+        </div>
+
+        <div id="status" hidden></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====================== CONFIG ====================== */
+const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbzjGN_oF8B0_WxihEzPIiYTlitiV96my4RL9k4D4UTPNe_zzyKwxjAN6JL8jdx_MepiIQ/exec";
+const CLIENT_SECRET = "supersecretstring123";
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/9B64gA2hx1R40934Zo4ko00";
+
+/* ====================== Phrase animation ====================== */
 const phrases = [
-  "a real person",
+  "a real human (not AI)",
   "a curious listener",
   "a business consultant",
-  "a parent and spouse.",
+  "a parent. a spouse.",
+  "a leader. a teacher.",
   "a reader. a writer.",
-  "a teacher. a leader."
 ];
 
 const phraseEl = document.getElementById('phrase');
 const introEl = document.getElementById('intro');
 const composeEl = document.getElementById('compose');
-const pendingBanner = document.getElementById('pendingBanner');
-const resumeBtn = document.getElementById('resumeBtn');
 
 function delay(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
 async function showIntroSequence(){
   await delay(350);
-  for (let i = 0; i < phrases.length; i++){
+  for (let i=0; i<phrases.length; i++){
     phraseEl.textContent = phrases[i];
     phraseEl.classList.add('fade-in');
     await delay(1000);
@@ -105,125 +152,168 @@ async function showIntroSequence(){
     await delay(160);
   }
   await delay(200);
-  introEl.style.display = 'none';
+  introEl.style.display='none';
   composeEl.hidden = false;
   document.getElementById('message').focus();
 }
 
-/* ======================
-   Word count (250 word limit)
-   ====================== */
+/* ====================== Word count & validation ====================== */
 const messageEl = document.getElementById('message');
-const wordCountEl = document.getElementById('wordCount');
-const sendBtn = document.getElementById('sendBtn');
 const nameEl = document.getElementById('name');
 const emailEl = document.getElementById('email');
+const wordCountEl = document.getElementById('wordCount');
 const statusEl = document.getElementById('status');
+const sendBtn = document.getElementById('sendBtn');
 
-function countWords(text){
-  if (!text) return 0;
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function trimToWords(text, max){
-  const parts = text.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= max) return text;
-  return parts.slice(0, max).join(' ');
-}
-
+function countWords(text){ return text.trim().split(/\s+/).filter(Boolean).length; }
+function trimToWords(text,max){ return text.trim().split(/\s+/).filter(Boolean).slice(0,max).join(' '); }
 function updateWordCount(){
   let words = countWords(messageEl.value);
-  if (words > 250){
-    messageEl.value = trimToWords(messageEl.value, 250);
-    words = 250;
-  }
-  wordCountEl.textContent = `${words} / 250 words`;
-  sendBtn.disabled = (words === 0) || !validateEmail(emailEl.value);
+  if(words>250) messageEl.value = trimToWords(messageEl.value,250);
+  wordCountEl.textContent = `${countWords(messageEl.value)} / 250 words`;
+  sendBtn.disabled = (countWords(messageEl.value)===0)||!validateEmail(emailEl.value);
 }
+function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/* ======================
-   Email validation
-   ====================== */
-function validateEmail(email){
-  if (!email) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-/* ======================
-   Pending resume logic
-   ====================== */
-function getPending(){ try { return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)); } catch(e){ return null; } }
-function setPending(obj){ localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(obj)); }
-function clearPending(){ localStorage.removeItem(LOCAL_STORAGE_KEY); }
-
-function showPendingBannerIfNeeded(){
-  const pending = getPending();
-  if (pending && pending.message){
-    pendingBanner.style.display = "block";
-  } else {
-    pendingBanner.style.display = "none";
-  }
-}
-
-resumeBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(STRIPE_PAYMENT_LINK, '_blank');
-});
-
-/* ======================
-   Send flow
-   ====================== */
-function uuidv4(){
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
-    const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
-    return v.toString(16);
-  });
-}
-
-sendBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  statusEl.hidden = true;
-  const messageText = messageEl.value.trim();
-  const email = emailEl.value.trim();
+/* ====================== Send message (pre-pay) ====================== */
+sendBtn.addEventListener('click', async()=>{
+  const message = messageEl.value.trim();
   const name = nameEl.value.trim();
+  const email = emailEl.value.trim();
+  if(!message){ alert("Type a message!"); return; }
+  if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
 
-  if (!messageText){ statusEl.textContent = "Please write something before sending."; statusEl.hidden = false; return; }
-  if (!validateEmail(email)){ statusEl.textContent = "Please enter a valid email address."; statusEl.hidden = false; return; }
+  try{
+    const res = await fetch(APPS_SCRIPT_WEBHOOK,{
+      method:'POST',
+      body: JSON.stringify({
+        clientSecret: CLIENT_SECRET,
+        message: message,
+        name: name,
+        email: email,
+        stripeLink: STRIPE_PAYMENT_LINK
+      })
+    });
+    const data = await res.json();
+    if(data.error){ alert("Error: "+data.error); return; }
 
-  const payload = {
-    id: uuidv4(),
-    name: name || "",
-    email: email,
-    message: messageText,
-    ts: new Date().toISOString(),
-    clientSecret: APPS_SCRIPT_CLIENT_SECRET
-  };
+    // Save messageId in sessionStorage
+    sessionStorage.setItem("dearMike_messageId", data.messageId);
 
-  setPending(payload);
+    // Open Stripe
+    window.location.href = STRIPE_PAYMENT_LINK;
 
-  try {
-    window.open.href = STRIPE_PAYMENT_LINK;
-    statusEl.textContent = "Opening payment in a new tab. After payment you'll be redirected back here to complete submission.";
-    statusEl.hidden = false;
   } catch(err){
-    statusEl.textContent = "Unable to open payment link. Please open this link manually: " + STRIPE_PAYMENT_LINK;
-    statusEl.hidden = false;
+    alert("Unexpected error: "+err.message);
   }
-  showPendingBannerIfNeeded();
 });
 
-/* ======================
-   Init
-   ====================== */
-document.addEventListener('DOMContentLoaded', function(){
+/* ====================== Init ====================== */
+document.addEventListener('DOMContentLoaded',()=>{
   showIntroSequence();
-
   messageEl.addEventListener('input', updateWordCount);
   emailEl.addEventListener('input', updateWordCount);
   nameEl.addEventListener('input', updateWordCount);
+  updateWordCount();
+});
+</script>
+</body>
+</html>
+";
+const CLIENT_SECRET = "supersecretstring123";
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/9B64gA2hx1R40934Zo4ko00";
 
-  showPendingBannerIfNeeded();
-  emailEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); messageEl.focus(); } });
+/* ====================== Phrase animation ====================== */
+const phrases = [
+  "a real person",
+  "a curious listener",
+  "a business consultant",
+  "a parent",
+  "a leader",
+  "a spouse",
+  "a reader",
+  "a writer",
+  "a teacher"
+];
+
+const phraseEl = document.getElementById('phrase');
+const introEl = document.getElementById('intro');
+const composeEl = document.getElementById('compose');
+
+function delay(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+async function showIntroSequence(){
+  await delay(350);
+  for (let i=0; i<phrases.length; i++){
+    phraseEl.textContent = phrases[i];
+    phraseEl.classList.add('fade-in');
+    await delay(1000);
+    phraseEl.classList.remove('fade-in');
+    await delay(160);
+  }
+  await delay(200);
+  introEl.style.display='none';
+  composeEl.hidden = false;
+  document.getElementById('message').focus();
+}
+
+/* ====================== Word count & validation ====================== */
+const messageEl = document.getElementById('message');
+const nameEl = document.getElementById('name');
+const emailEl = document.getElementById('email');
+const wordCountEl = document.getElementById('wordCount');
+const statusEl = document.getElementById('status');
+const sendBtn = document.getElementById('sendBtn');
+
+function countWords(text){ return text.trim().split(/\s+/).filter(Boolean).length; }
+function trimToWords(text,max){ return text.trim().split(/\s+/).filter(Boolean).slice(0,max).join(' '); }
+function updateWordCount(){
+  let words = countWords(messageEl.value);
+  if(words>250) messageEl.value = trimToWords(messageEl.value,250);
+  wordCountEl.textContent = `${countWords(messageEl.value)} / 250 words`;
+  sendBtn.disabled = (countWords(messageEl.value)===0)||!validateEmail(emailEl.value);
+}
+function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+
+/* ====================== Send message (pre-pay) ====================== */
+sendBtn.addEventListener('click', async()=>{
+  const message = messageEl.value.trim();
+  const name = nameEl.value.trim();
+  const email = emailEl.value.trim();
+  if(!message){ alert("Type a message!"); return; }
+  if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
+
+  try{
+    const res = await fetch(APPS_SCRIPT_WEBHOOK,{
+      method:'POST',
+      body: JSON.stringify({
+        clientSecret: CLIENT_SECRET,
+        message: message,
+        name: name,
+        email: email,
+        stripeLink: STRIPE_PAYMENT_LINK
+      })
+    });
+    const data = await res.json();
+    if(data.error){ alert("Error: "+data.error); return; }
+
+    // Save messageId in sessionStorage
+    sessionStorage.setItem("dearMike_messageId", data.messageId);
+
+    // Open Stripe
+    window.location.href = STRIPE_PAYMENT_LINK;
+
+  } catch(err){
+    alert("Unexpected error: "+err.message);
+  }
+});
+
+/* ====================== Init ====================== */
+document.addEventListener('DOMContentLoaded',()=>{
+  showIntroSequence();
+  messageEl.addEventListener('input', updateWordCount);
+  emailEl.addEventListener('input', updateWordCount);
+  nameEl.addEventListener('input', updateWordCount);
   updateWordCount();
 });
 </script>
