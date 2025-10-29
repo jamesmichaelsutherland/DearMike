@@ -111,13 +111,13 @@ function updateWordCount(){
 function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
 /* ====================== Send message (pre-pay, wait for confirmation) ====================== */
-sendBtn.addEventListener('click', async () => {
+sendBtn.addEventListener('click', async()=> {
   const message = messageEl.value.trim();
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
 
-  if (!message) { alert("Type a message!"); return; }
-  if (!validateEmail(email)) { alert("Enter a valid email!"); return; }
+  if(!message){ alert("Type a message!"); return; }
+  if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
 
   // Backup locally just in case
   sessionStorage.setItem("dearMike_backupMessage", message);
@@ -136,39 +136,25 @@ sendBtn.addEventListener('click', async () => {
     });
 
     const data = await res.json();
-    console.log("Apps Script returned:", data); // <-- for debugging
 
-    if (!data) {
-      alert("No response from server. Please copy your message manually.");
+    if(data.error){
+      alert("Error saving your message: "+data.error+"\nPlease copy it manually.");
       return;
     }
 
-    if (data.error) {
-      alert("Error saving your message: " + data.error + "\nPlease copy it manually.");
-      return;
-    }
-
-    if (data.success) {
-      // Store messageId if returned, but don’t block redirect if missing
-      if (data.messageId) {
-        sessionStorage.setItem("dearMike_messageId", data.messageId);
-      } else {
-        console.warn("No messageId returned from Apps Script");
-        sessionStorage.setItem("dearMike_messageId", "");
-      }
-
+    if(data.success){
+      // ✅ Save messageId so success.html can mark it as paid
+      sessionStorage.setItem("dearMike_messageId", data.messageId);
       // Redirect to Stripe
       window.location.href = STRIPE_PAYMENT_LINK;
     } else {
-      alert("Unexpected response. Please copy your message manually.");
+      alert("Something went wrong. Please copy your message manually.");
     }
 
-  } catch (err) {
-    console.error("Fetch error:", err);
-    alert("Unexpected error: " + err.message + "\nPlease copy your message manually.");
+  } catch(err){
+    alert("Unexpected error: "+err.message+"\nPlease copy your message manually.");
   }
 });
-
 
 /* ====================== Init ====================== */
 document.addEventListener('DOMContentLoaded',()=>{
