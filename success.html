@@ -1,80 +1,15 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Thank you — Send Mike a Message</title>
+<meta charset="UTF-8">
+<title>Thank You</title>
 <style>
-  body{ background:#000; color:#fff; font-family: "IBM Plex Mono", monospace; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
-  .box{ max-width:680px; width:90%; text-align:center; padding:28px; box-sizing:border-box; }
-  .muted{ color:#bdbdbd; margin-top:12px; }
-  button{ margin-top:14px; padding:10px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.12); background:transparent; color:#fff; cursor:pointer; }
-  pre{ text-align:left; background:rgba(255,255,255,0.02); padding:12px; border-radius:8px; overflow:auto; text-wrap:normal; white-space:pre-wrap; }
+  body { background: black; color: white; font-family: monospace; text-align: center; padding-top: 50px; }
 </style>
 </head>
 <body>
-<div class="box">
-  <h1>Thank you.</h1>
-  <div id="messageArea" class="muted">Finishing up…</div>
-  <div id="result" style="display:none;">
-    <p>We saved your message and sent it to Mike. You should receive a confirmation email soon.</p>
-    <p class="muted">If you don't get an email within a few minutes, please <a href="mailto:you@example.com" style="color:#fff;text-decoration:underline">contact us</a>.</p>
-  </div>
-  <div id="error" style="display:none;">
-    <p>We couldn't find a pending message in your browser. If you paid but didn't see a confirmation here, please contact: <a href="mailto:you@example.com" style="color:#fff;text-decoration:underline">you@example.com</a></p>
-    <p class="muted">(If you used a different device to pay, the app won't be able to access your original message.)</p>
-  </div>
-</div>
-
-<script>
-/* CONFIG — must match index.html */
-const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbwo1GEHilGv42FiD7sWZyAsBI7GAp_rtvCUiNxq4_OA-EYJceZrHQ8HaQK22kMNvj9eBg/exec"; // << REPLACE
-const LOCAL_STORAGE_KEY = "dearMike_pending_v1";
-
-function getPending(){ try { return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)); } catch(e){ return null; } }
-function clearPending(){ localStorage.removeItem(LOCAL_STORAGE_KEY); }
-
-async function postToAppsScript(payload){
-  try {
-    const res = await fetch(APPS_SCRIPT_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch(err){
-    return { error: err.message || "network-error" };
-  }
-}
-
-(async function(){
-  const pending = getPending();
-  const messageArea = document.getElementById('messageArea');
-  const result = document.getElementById('result');
-  const error = document.getElementById('error');
-
-  if (!pending){
-    messageArea.textContent = "No pending message found in this browser.";
-    error.style.display = "block";
-    return;
-  }
-
-  messageArea.textContent = "Submitting your message now…";
-
-  // Attach a small "paid" flag; if you can obtain Stripe session id via query param you can include it here later.
-  pending.paid = true;
-
-  const resp = await postToAppsScript(pending);
-  if (resp && resp.success){
-    clearPending();
-    messageArea.style.display = "none";
-    result.style.display = "block";
-  } else {
-    messageArea.textContent = "There was an error submitting your message.";
-    error.style.display = "block";
-    console.error("Apps Script response:", resp);
-  }
-})();
-</script>
+<h1>Thank you!</h1>
+<p>Your message has been received and payment confirmed.</p>
 </body>
 </html>
+
