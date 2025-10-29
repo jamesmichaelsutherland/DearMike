@@ -119,7 +119,7 @@ sendBtn.addEventListener('click', async()=> {
   if(!message){ alert("Type a message!"); return; }
   if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
 
-  // Backup locally
+  // Backup locally just in case
   sessionStorage.setItem("dearMike_backupMessage", message);
   sessionStorage.setItem("dearMike_backupName", name);
   sessionStorage.setItem("dearMike_backupEmail", email);
@@ -135,28 +135,27 @@ sendBtn.addEventListener('click', async()=> {
       })
     });
 
-    const resText = await res.text();
-console.log("Raw response:", resText);
-const data = JSON.parse(resText);
-
+    const data = await res.json();
 
     if(data.error){
       alert("Error saving your message: "+data.error+"\nPlease copy it manually.");
       return;
     }
 
-    if(data.success === true || data.success === "true"){
-      // Save messageId for success.html
+    if(data.success && data.messageId){
+      // ✅ Store messageId for the success page
       sessionStorage.setItem("dearMike_messageId", data.messageId);
+      // Redirect to Stripe payment
       window.location.href = STRIPE_PAYMENT_LINK;
     } else {
-      alert("Something went wrong. Please copy your message manually.");
+      alert("Unexpected response. Please copy your message manually.");
     }
 
   } catch(err){
     alert("Unexpected error: "+err.message+"\nPlease copy your message manually.");
   }
 });
+
 
 /* ====================== Init ====================== */
 document.addEventListener('DOMContentLoaded',()=>{
