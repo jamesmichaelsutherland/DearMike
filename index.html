@@ -119,7 +119,7 @@ sendBtn.addEventListener('click', async()=> {
   if(!message){ alert("Type a message!"); return; }
   if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
 
-  // Backup locally just in case
+  // Backup locally
   sessionStorage.setItem("dearMike_backupMessage", message);
   sessionStorage.setItem("dearMike_backupName", name);
   sessionStorage.setItem("dearMike_backupEmail", email);
@@ -142,11 +142,9 @@ sendBtn.addEventListener('click', async()=> {
       return;
     }
 
-    if(data.success){
-      // ✅ Save messageId for success.html
+    if(data.success === true || data.success === "true"){
+      // Save messageId for success.html
       sessionStorage.setItem("dearMike_messageId", data.messageId);
-
-      // Only redirect once message is confirmed saved
       window.location.href = STRIPE_PAYMENT_LINK;
     } else {
       alert("Something went wrong. Please copy your message manually.");
