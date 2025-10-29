@@ -143,9 +143,10 @@ sendBtn.addEventListener('click', async()=> {
     }
 
     if(data.success){
-      // ✅ Save messageId so success.html can mark it as paid
+      // ✅ Save messageId for success.html
       sessionStorage.setItem("dearMike_messageId", data.messageId);
-      // Redirect to Stripe
+
+      // Only redirect once message is confirmed saved
       window.location.href = STRIPE_PAYMENT_LINK;
     } else {
       alert("Something went wrong. Please copy your message manually.");
@@ -167,4 +168,5 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 </body>
 </html>
+
 
