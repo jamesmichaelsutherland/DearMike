@@ -143,8 +143,12 @@ sendBtn.addEventListener('click', async()=> {
     }
 
     if(data.success){
-      // Only redirect once message is confirmed saved
-      window.location.href = STRIPE_PAYMENT_LINK;
+  // Save the messageId to sessionStorage so success.html can use it
+  sessionStorage.setItem("dearMike_messageId", data.messageId);
+  // Only redirect once message is confirmed saved
+  window.location.href = STRIPE_PAYMENT_LINK;
+}
+
     } else {
       alert("Something went wrong. Please copy your message manually.");
     }
