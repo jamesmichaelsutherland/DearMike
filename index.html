@@ -110,16 +110,16 @@ function updateWordCount(){
 }
 function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/* ====================== Send message (pre-pay, fail-safe) ====================== */
-sendBtn.addEventListener('click', async () => {
+/* ====================== Send message (pre-pay, wait for confirmation) ====================== */
+sendBtn.addEventListener('click', async()=> {
   const message = messageEl.value.trim();
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
-  
-  if (!message) { alert("Type a message!"); return; }
-  if (!validateEmail(email)) { alert("Enter a valid email!"); return; }
 
-  // Save message locally as a backup
+  if(!message){ alert("Type a message!"); return; }
+  if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
+
+  // Backup locally just in case
   sessionStorage.setItem("dearMike_backupMessage", message);
   sessionStorage.setItem("dearMike_backupName", name);
   sessionStorage.setItem("dearMike_backupEmail", email);
@@ -137,19 +137,22 @@ sendBtn.addEventListener('click', async () => {
 
     const data = await res.json();
 
-    if (data.error) { 
-      alert("Error saving your message: " + data.error + "\nYour message is saved locally. Please copy it just in case."); 
-      return; 
+    if(data.error){
+      alert("Error saving your message: "+data.error+"\nPlease copy it manually.");
+      return;
     }
 
-    // If Apps Script succeeded, redirect to Stripe
-    window.location.href = STRIPE_PAYMENT_LINK;
+    if(data.success){
+      // Only redirect once message is confirmed saved
+      window.location.href = STRIPE_PAYMENT_LINK;
+    } else {
+      alert("Something went wrong. Please copy your message manually.");
+    }
 
-  } catch (err) {
-    alert("Unexpected error: " + err.message + "\nYour message is saved locally. Please copy it just in case.");
+  } catch(err){
+    alert("Unexpected error: "+err.message+"\nPlease copy your message manually.");
   }
 });
-
 
 /* ====================== Init ====================== */
 document.addEventListener('DOMContentLoaded',()=>{
@@ -162,3 +165,4 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 </body>
 </html>
+
