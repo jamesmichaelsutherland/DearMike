@@ -135,7 +135,10 @@ sendBtn.addEventListener('click', async()=> {
       })
     });
 
-    const data = await res.json();
+    const resText = await res.text();
+console.log("Raw response:", resText);
+const data = JSON.parse(resText);
+
 
     if(data.error){
       alert("Error saving your message: "+data.error+"\nPlease copy it manually.");
