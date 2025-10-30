@@ -170,9 +170,12 @@ sendBtn.addEventListener('click', async () => {
       return;
     }
 
-    // store the same messageId for success page
-    sessionStorage.setItem("dearMike_messageId", messageId);
-    sessionStorage.removeItem("dearMike_pending_messageId");
+    
+    // Store messageId in BOTH sessionStorage and localStorage (Safari-safe)
+sessionStorage.setItem("dearMike_messageId", messageId);
+localStorage.setItem("dearMike_messageId", messageId);
+sessionStorage.removeItem("dearMike_pending_messageId");
+
 
     // redirect to Stripe
     window.location.href = STRIPE_PAYMENT_LINK;
