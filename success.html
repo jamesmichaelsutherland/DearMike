@@ -21,7 +21,7 @@
 
   async function markPaid(messageId){
     try {
-      // Send a simple POST (no custom headers to avoid preflight)
+      // simple POST (no custom headers to avoid CORS preflight)
       const res = await fetch(APPS_SCRIPT_WEBHOOK, {
         method: 'POST',
         body: JSON.stringify({
@@ -47,7 +47,6 @@
 
       if (data && data.success) {
         statusEl.textContent = "Your message has been sent successfully.";
-        // Clear the stored messageId
         try { sessionStorage.removeItem("dearMike_messageId"); } catch(e){}
       } else if (data && data.error) {
         statusEl.textContent = "Error verifying your message: " + String(data.error);
@@ -60,7 +59,6 @@
     }
   }
 
-  // run on load
   window.addEventListener("load", function(){
     let messageId = null;
     try { messageId = sessionStorage.getItem("dearMike_messageId"); } catch(e){ console.warn("sessionStorage access error", e); }
@@ -70,8 +68,6 @@
       return;
     }
 
-    // If messageId is empty string, still attempt markPaid (Apps Script may accept it),
-    // otherwise call markPaid
     markPaid(messageId);
   });
 })();
