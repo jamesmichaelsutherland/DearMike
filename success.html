@@ -5,11 +5,18 @@
 const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbzb6pcahAq5YeDTQcF6317vO7m5M7YPMTgFE51IJ8kcvdFDyy7xeFGxKi_emfQ8ytRXVQ/exec";
 const CLIENT_SECRET = "supersecretstring123";
 
+function getParam(name) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+
 window.addEventListener("load", async () => {
-  // Try to recover from sessionStorage, or fallback to localStorage (Safari fix)
-  let messageId = sessionStorage.getItem("dearMike_messageId");
+  // Step 1: Try URL first (new fix)
+  let messageId = getParam("msg");
+
+  // Step 2: Fallback to storage if missing
   if (!messageId) {
-    messageId = localStorage.getItem("dearMike_messageId");
+    messageId = sessionStorage.getItem("dearMike_messageId") || localStorage.getItem("dearMike_messageId");
   }
 
   if (!messageId) {
@@ -34,24 +41,21 @@ window.addEventListener("load", async () => {
     try {
       data = JSON.parse(raw);
     } catch (e) {
-      console.error("Failed to parse JSON on success page:", e);
-      document.body.innerHTML = "<p>Unexpected server response. Please copy your message manually if needed.</p>";
+      console.error("Failed to parse JSON:", e);
+      document.body.innerHTML = "<p>Unexpected server response. Please copy your message manually.</p>";
       return;
     }
 
-    if (data && data.success) {
+    if (data.success) {
       document.body.innerHTML = "<h2>Thank you!</h2><p>Your message has been sent successfully.</p>";
       sessionStorage.removeItem("dearMike_messageId");
       localStorage.removeItem("dearMike_messageId");
-    } else if (data && data.error) {
-      document.body.innerHTML = "<p>Error verifying your message: " + data.error + "</p>";
     } else {
-      document.body.innerHTML = "<p>Unexpected response from server. Your message may have been sent.</p>";
+      document.body.innerHTML = "<p>Error verifying your message: " + (data.error || "Unknown") + "</p>";
     }
   } catch (err) {
-    console.error("Fetch error on success page:", err);
+    console.error("Fetch error:", err);
     document.body.innerHTML = "<p>Unexpected error: " + err.message + "</p>";
   }
 });
 </script>
-
