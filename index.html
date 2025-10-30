@@ -119,29 +119,36 @@ sendBtn.addEventListener('click', async () => {
   if (!message) { alert("Type a message!"); return; }
   if (!validateEmail(email)) { alert("Enter a valid email!"); return; }
 
- const res = await fetch(APPS_SCRIPT_WEBHOOK, {
-  method: 'POST',
-  // NOTE: do NOT set a custom Content-Type header here — that causes a CORS preflight.
-  body: JSON.stringify({
-    clientSecret: CLIENT_SECRET,
-    message: message,
-    name: name,
-    email: email
-  })
-});
+  // Backup locally
+  sessionStorage.setItem("dearMike_backupMessage", message);
+  sessionStorage.setItem("dearMike_backupName", name);
+  sessionStorage.setItem("dearMike_backupEmail", email);
 
-// read raw text and parse (helps debug)
-const raw = await res.text();
-console.log("Raw response from Apps Script:", raw);
+  try {  // <<< --- This was missing before
 
-let data;
-try {
-  data = JSON.parse(raw);
-} catch (e) {
-  console.error("Failed to parse JSON from Apps Script response:", e);
-  alert("Unexpected server response. Your message is saved locally; please copy it manually.");
-  return;
-}
+    // NOTE: do NOT set a custom Content-Type header here — that triggers a CORS preflight.
+    const res = await fetch(APPS_SCRIPT_WEBHOOK, {
+      method: 'POST',
+      body: JSON.stringify({
+        clientSecret: CLIENT_SECRET,
+        message: message,
+        name: name,
+        email: email
+      })
+    });
+
+    // read raw text and parse (helps debug)
+    const raw = await res.text();
+    console.log("Raw response from Apps Script:", raw);
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("Failed to parse JSON from Apps Script response:", e);
+      alert("Unexpected server response. Your message is saved locally; please copy it manually.");
+      return;
+    }
 
     // Accept either: success === true OR presence of messageId
     const ok = (data && (data.success === true || data.success === "true" || !!data.messageId));
