@@ -110,15 +110,7 @@ function updateWordCount(){
 }
 function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/* ====================== Helper: UUID generator ====================== */
-function uuidv4(){
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
-    const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
-    return v.toString(16);
-  });
-}
-
-/* ====================== Send message ====================== */
+/* ====================== Send message (robust, with msgId in URL) ====================== */
 sendBtn.addEventListener('click', async () => {
   const message = messageEl.value.trim();
   const name = nameEl.value.trim();
@@ -127,26 +119,11 @@ sendBtn.addEventListener('click', async () => {
   if (!message) { alert("Type a message!"); return; }
   if (!validateEmail(email)) { alert("Enter a valid email!"); return; }
 
-  // generate or reuse client-side messageId
-  let messageId = sessionStorage.getItem("dearMike_pending_messageId");
-  if (!messageId) {
-    messageId = uuidv4();
-    sessionStorage.setItem("dearMike_pending_messageId", messageId);
-  }
-
-  sendBtn.disabled = true;
-
-  // Backup locally
-  sessionStorage.setItem("dearMike_backupMessage", message);
-  sessionStorage.setItem("dearMike_backupName", name);
-  sessionStorage.setItem("dearMike_backupEmail", email);
-
   try {
     const res = await fetch(APPS_SCRIPT_WEBHOOK, {
       method: 'POST',
       body: JSON.stringify({
         clientSecret: CLIENT_SECRET,
-        messageId: messageId,
         message: message,
         name: name,
         email: email
@@ -157,33 +134,31 @@ sendBtn.addEventListener('click', async () => {
     console.log("Raw response from Apps Script:", raw);
 
     let data;
-    try { data = JSON.parse(raw); } catch (e) {
-      console.error("Failed to parse JSON from Apps Script response:", e);
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("Failed to parse JSON from Apps Script:", e);
       alert("Unexpected server response. Your message is saved locally; please copy it manually.");
-      sendBtn.disabled = false;
       return;
     }
 
-    if (data && data.error) {
-      alert("Error saving your message: " + data.error + "\nPlease copy it manually.");
-      sendBtn.disabled = false;
-      return;
+    const ok = (data && (data.success === true || !!data.messageId));
+
+    if (ok) {
+      const msgId = data.messageId || "";
+      sessionStorage.setItem("dearMike_messageId", msgId);
+      localStorage.setItem("dearMike_messageId", msgId);
+
+      // ✅ Redirect to Stripe with messageId included in URL
+      const encodedId = encodeURIComponent(msgId);
+      window.location.href = `${STRIPE_PAYMENT_LINK}?msg=${encodedId}`;
+    } else {
+      alert("Unexpected response. Please copy your message manually.");
     }
-
-    
-    // Store messageId in BOTH sessionStorage and localStorage (Safari-safe)
-sessionStorage.setItem("dearMike_messageId", messageId);
-localStorage.setItem("dearMike_messageId", messageId);
-sessionStorage.removeItem("dearMike_pending_messageId");
-
-
-    // redirect to Stripe
-    window.location.href = STRIPE_PAYMENT_LINK;
 
   } catch (err) {
     console.error("Fetch error while saving message:", err);
     alert("Network or server error: " + err.message + "\nYour message is saved locally; please copy it manually.");
-    sendBtn.disabled = false;
   }
 });
 
@@ -192,12 +167,5 @@ document.addEventListener('DOMContentLoaded',()=>{
   showIntroSequence();
   messageEl.addEventListener('input', updateWordCount);
   emailEl.addEventListener('input', updateWordCount);
-  nameEl.addEventListener('input', updateWordCount);
-  updateWordCount();
-});
-</script>
-</body>
-</html>
-
-
+  nameEl.addEventListener('i
 
