@@ -110,16 +110,16 @@ function updateWordCount(){
 }
 function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/* ====================== Send message (pre-pay, wait for confirmation) ====================== */
-sendBtn.addEventListener('click', async()=> {
+/* ====================== Send message (robust) ====================== */
+sendBtn.addEventListener('click', async () => {
   const message = messageEl.value.trim();
   const name = nameEl.value.trim();
   const email = emailEl.value.trim();
 
-  if(!message){ alert("Type a message!"); return; }
-  if(!validateEmail(email)){ alert("Enter a valid email!"); return; }
+  if (!message) { alert("Type a message!"); return; }
+  if (!validateEmail(email)) { alert("Enter a valid email!"); return; }
 
-  // Backup locally just in case
+  // Backup locally
   sessionStorage.setItem("dearMike_backupMessage", message);
   sessionStorage.setItem("dearMike_backupName", name);
   sessionStorage.setItem("dearMike_backupEmail", email);
@@ -127,6 +127,7 @@ sendBtn.addEventListener('click', async()=> {
   try {
     const res = await fetch(APPS_SCRIPT_WEBHOOK, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         clientSecret: CLIENT_SECRET,
         message: message,
@@ -135,24 +136,48 @@ sendBtn.addEventListener('click', async()=> {
       })
     });
 
-    const data = await res.json();
+    // Debugging: raw text in case parsing fails
+    const raw = await res.text();
+    console.log("Raw response from Apps Script:", raw);
 
-    if(data.error){
-      alert("Error saving your message: "+data.error+"\nPlease copy it manually.");
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("Failed to parse JSON from Apps Script response:", e);
+      alert("Unexpected server response. Your message is saved locally; please copy it manually.");
       return;
     }
 
-    if(data.success && data.messageId){
-      // ✅ Store messageId for the success page
-      sessionStorage.setItem("dearMike_messageId", data.messageId);
-      // Redirect to Stripe payment
+    console.log("Parsed response from Apps Script:", data);
+
+    // If server returned an explicit error
+    if (data && data.error) {
+      alert("Error saving your message: " + data.error + "\nPlease copy it manually.");
+      return;
+    }
+
+    // Accept either: success === true OR presence of messageId
+    const ok = (data && (data.success === true || data.success === "true" || !!data.messageId));
+
+    if (ok) {
+      // Save messageId when present (for success page)
+      if (data.messageId) {
+        sessionStorage.setItem("dearMike_messageId", data.messageId);
+      } else {
+        // Ensure key exists (empty string) to indicate we attempted to save
+        sessionStorage.setItem("dearMike_messageId", "");
+        console.warn("Apps Script did not return messageId, but indicated success.");
+      }
+      // Redirect to Stripe
       window.location.href = STRIPE_PAYMENT_LINK;
     } else {
       alert("Unexpected response. Please copy your message manually.");
     }
 
-  } catch(err){
-    alert("Unexpected error: "+err.message+"\nPlease copy your message manually.");
+  } catch (err) {
+    console.error("Fetch error while saving message:", err);
+    alert("Network or server error: " + err.message + "\nYour message is saved locally; please copy it manually.");
   }
 });
 
