@@ -1,76 +1,57 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Thank you — Dear Mike</title>
-  <style>
-    body{ background:#000; color:#fff; font-family: "IBM Plex Mono", monospace; padding:28px; }
-    p{ color:#bdbdbd; font-size:16px }
-  </style>
-</head>
-<body>
-  <h2>Thank you!</h2>
-  <p id="statusText">Processing your message...</p>
+<h2>Thank you!</h2>
+<p>Processing your message...</p>
 
 <script>
-(function(){
-  const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbzb6pcahAq5YeDTQcF6317vO7m5M7YPMTgFE51IJ8kcvdFDyy7xeFGxKi_emfQ8ytRXVQ/exec";
-  const CLIENT_SECRET = "supersecretstring123";
-  const statusEl = document.getElementById('statusText');
+const APPS_SCRIPT_WEBHOOK = "https://script.google.com/macros/s/AKfycbzb6pcahAq5YeDTQcF6317vO7m5M7YPMTgFE51IJ8kcvdFDyy7xeFGxKi_emfQ8ytRXVQ/exec";
+const CLIENT_SECRET = "supersecretstring123";
 
-  async function markPaid(messageId){
-    try {
-      // simple POST (no custom headers to avoid CORS preflight)
-      const res = await fetch(APPS_SCRIPT_WEBHOOK, {
-        method: 'POST',
-        body: JSON.stringify({
-          clientSecret: CLIENT_SECRET,
-          markPaid: true,
-          messageId: messageId
-        })
-      });
-
-      const raw = await res.text();
-      console.log("Raw response on success page:", raw);
-
-      let data;
-      try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        console.error("Could not parse Apps Script response on success page:", e, raw);
-        statusEl.textContent = "Unexpected server response. Please copy your message manually if needed.";
-        return;
-      }
-
-      console.log("Parsed Apps Script response (success page):", data);
-
-      if (data && data.success) {
-        statusEl.textContent = "Your message has been sent successfully.";
-        try { sessionStorage.removeItem("dearMike_messageId"); } catch(e){}
-      } else if (data && data.error) {
-        statusEl.textContent = "Error verifying your message: " + String(data.error);
-      } else {
-        statusEl.textContent = "Unexpected response from server. Your message may have been sent.";
-      }
-    } catch (err) {
-      console.error("Fetch error on success page:", err);
-      statusEl.textContent = "Network error while verifying your message: " + (err && err.message ? err.message : String(err));
-    }
+window.addEventListener("load", async () => {
+  // Try to recover from sessionStorage, or fallback to localStorage (Safari fix)
+  let messageId = sessionStorage.getItem("dearMike_messageId");
+  if (!messageId) {
+    messageId = localStorage.getItem("dearMike_messageId");
   }
 
-  window.addEventListener("load", function(){
-    let messageId = null;
-    try { messageId = sessionStorage.getItem("dearMike_messageId"); } catch(e){ console.warn("sessionStorage access error", e); }
+  if (!messageId) {
+    document.body.innerHTML = "<p>Your message was processed, but we couldn’t verify it automatically. Please copy it manually if needed.</p>";
+    return;
+  }
 
-    if (!messageId) {
-      statusEl.textContent = "Your message was processed, but we could not verify it automatically. Please copy it manually if needed.";
+  try {
+    const res = await fetch(APPS_SCRIPT_WEBHOOK, {
+      method: "POST",
+      body: JSON.stringify({
+        clientSecret: CLIENT_SECRET,
+        markPaid: true,
+        messageId: messageId
+      })
+    });
+
+    const raw = await res.text();
+    console.log("Raw response on success page:", raw);
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("Failed to parse JSON on success page:", e);
+      document.body.innerHTML = "<p>Unexpected server response. Please copy your message manually if needed.</p>";
       return;
     }
 
-    markPaid(messageId);
-  });
-})();
+    if (data && data.success) {
+      document.body.innerHTML = "<h2>Thank you!</h2><p>Your message has been sent successfully.</p>";
+      sessionStorage.removeItem("dearMike_messageId");
+      localStorage.removeItem("dearMike_messageId");
+    } else if (data && data.error) {
+      document.body.innerHTML = "<p>Error verifying your message: " + data.error + "</p>";
+    } else {
+      document.body.innerHTML = "<p>Unexpected response from server. Your message may have been sent.</p>";
+    }
+  } catch (err) {
+    console.error("Fetch error on success page:", err);
+    document.body.innerHTML = "<p>Unexpected error: " + err.message + "</p>";
+  }
+});
 </script>
-</body>
-</html>
+
