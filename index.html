@@ -110,7 +110,15 @@ function updateWordCount(){
 }
 function validateEmail(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/* ====================== Send message (robust) ====================== */
+/* ====================== Helper: UUID generator ====================== */
+function uuidv4(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+    const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+/* ====================== Send message ====================== */
 sendBtn.addEventListener('click', async () => {
   const message = messageEl.value.trim();
   const name = nameEl.value.trim();
@@ -119,62 +127,62 @@ sendBtn.addEventListener('click', async () => {
   if (!message) { alert("Type a message!"); return; }
   if (!validateEmail(email)) { alert("Enter a valid email!"); return; }
 
+  // generate or reuse client-side messageId
+  let messageId = sessionStorage.getItem("dearMike_pending_messageId");
+  if (!messageId) {
+    messageId = uuidv4();
+    sessionStorage.setItem("dearMike_pending_messageId", messageId);
+  }
+
+  sendBtn.disabled = true;
+
   // Backup locally
   sessionStorage.setItem("dearMike_backupMessage", message);
   sessionStorage.setItem("dearMike_backupName", name);
   sessionStorage.setItem("dearMike_backupEmail", email);
 
-  try {  // <<< --- This was missing before
-
-    // NOTE: do NOT set a custom Content-Type header here — that triggers a CORS preflight.
+  try {
     const res = await fetch(APPS_SCRIPT_WEBHOOK, {
       method: 'POST',
       body: JSON.stringify({
         clientSecret: CLIENT_SECRET,
+        messageId: messageId,
         message: message,
         name: name,
         email: email
       })
     });
 
-    // read raw text and parse (helps debug)
     const raw = await res.text();
     console.log("Raw response from Apps Script:", raw);
 
     let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
+    try { data = JSON.parse(raw); } catch (e) {
       console.error("Failed to parse JSON from Apps Script response:", e);
       alert("Unexpected server response. Your message is saved locally; please copy it manually.");
+      sendBtn.disabled = false;
       return;
     }
 
-    // Accept either: success === true OR presence of messageId
-    const ok = (data && (data.success === true || data.success === "true" || !!data.messageId));
-
-    if (ok) {
-      // Save messageId when present (for success page)
-      if (data.messageId) {
-        sessionStorage.setItem("dearMike_messageId", data.messageId);
-      } else {
-        // Ensure key exists (empty string) to indicate we attempted to save
-        sessionStorage.setItem("dearMike_messageId", "");
-        console.warn("Apps Script did not return messageId, but indicated success.");
-      }
-      // Redirect to Stripe
-      window.location.href = STRIPE_PAYMENT_LINK;
-    } else {
-      alert("Unexpected response. Please copy your message manually.");
+    if (data && data.error) {
+      alert("Error saving your message: " + data.error + "\nPlease copy it manually.");
+      sendBtn.disabled = false;
+      return;
     }
+
+    // store the same messageId for success page
+    sessionStorage.setItem("dearMike_messageId", messageId);
+    sessionStorage.removeItem("dearMike_pending_messageId");
+
+    // redirect to Stripe
+    window.location.href = STRIPE_PAYMENT_LINK;
 
   } catch (err) {
     console.error("Fetch error while saving message:", err);
     alert("Network or server error: " + err.message + "\nYour message is saved locally; please copy it manually.");
+    sendBtn.disabled = false;
   }
 });
-
-
 
 /* ====================== Init ====================== */
 document.addEventListener('DOMContentLoaded',()=>{
@@ -187,5 +195,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 </body>
 </html>
+
 
 
